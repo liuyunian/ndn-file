@@ -6,8 +6,9 @@
 #include <ndn-cxx/interest.hpp>
 
 #include "client.h"
-Client::Client(std::string & prefix) : 
-    m_prefix(prefix){}
+Client::Client(std::string & prefix, std::string & filePath) : 
+    m_prefix(prefix),
+    m_filePath(filePath){}
 
 void Client::run(){
     ndn::Name interestName(m_prefix);
@@ -27,7 +28,7 @@ void Client::sendInterest(ndn::Name & interestName){
     ndn::Interest interest(interestName);
     interest.setCanBePrefix(false);
     interest.setMustBeFresh(true);
-    interest.setInterestLifetime(ndn::time::milliseconds(2000));
+    interest.setInterestLifetime(ndn::time::milliseconds(5000));
     interest.setNonce(std::rand());
 
     try {
@@ -35,6 +36,8 @@ void Client::sendInterest(ndn::Name & interestName){
         std::bind(&Client::onData, this, _2), 
         std::bind(&Client::onNack, this), 
         std::bind(&Client::onTimeOut, this));
+
+        // std::cout << "send interest: " << interest.getName() << std::endl;
     }
     catch (std::exception& e) {
         std::cerr << "ERROR: " << e.what() << std::endl;
@@ -43,6 +46,7 @@ void Client::sendInterest(ndn::Name & interestName){
 
 void Client::onData(const ndn::Data & data){
     ndn::Name dataName = data.getName();
+    // std::cout << "receive data: " << dataName << std::endl;
     std::string dataType = dataName.at(-1).toUri();
     if(dataType == "size"){
         const ndn::Block & content = data.getContent();
@@ -57,17 +61,25 @@ void Client::onData(const ndn::Data & data){
         }
     }
     else{
+        std::string filePath(m_filePath); 
         std::string fileName = dataName.at(-2).toUri();
-        m_fout.open(fileName.c_str(), std::ios::out | std::ios::app);
-        assert(m_fout.is_open());
+        std::ofstream fout;
+        if(dataType == "%00"){
+            fout.open(filePath.append(fileName), std::ios::out | std::ios::trunc);
+            
+        }
+        else{
+            fout.open(filePath.append(fileName), std::ios::out | std::ios::app);
+        }
+        assert(fout.is_open());
 
         const ndn::Block & content = data.getContent();
         for (size_t i = 0; i < content.value_size(); ++i) {
-            m_fout << (content.value())[i];
+            fout << (content.value())[i];
         }
 
-        m_fout.clear();
-        m_fout.close();
+        fout.clear();
+        fout.close();
     }
 }
 

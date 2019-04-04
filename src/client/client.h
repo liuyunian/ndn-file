@@ -1,13 +1,12 @@
 #ifndef CLIENT_H_
 #define CLIENT_H_
 #include <string>
-#include <fstream>
 
 #include <ndn-cxx/face.hpp>
 
 class Client{
 public:
-    Client(std::string & prefix);
+    Client(std::string & prefix, std::string & filePath);
 
     void run();
 
@@ -21,8 +20,8 @@ private:
 
 private:
     std::string m_prefix;
+    std::string m_filePath;
     uint32_t m_maxSeq = 0;
-    std::ofstream m_fout;
 
     ndn::Face m_face;
 };

@@ -1,0 +1,4 @@
+hello world
+
+请指定要分享文件的绝对目录
+eg: build/server -p /ndn -d /home/lyn/test/

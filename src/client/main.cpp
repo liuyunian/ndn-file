@@ -11,12 +11,14 @@ void usage(const boost::program_options::options_description &options){
 
 int main(int argc, char * argv[]){
     std::string prefix;
+    std::string filePath = "download/";
 
     namespace po = boost::program_options;
     
     po::options_description visibleOptDesc("Allowed options");
     visibleOptDesc.add_options()("help,h", "print this message and exit")
-                                ("prefix,p", po::value<std::string>(), "root prefix");
+                                ("prefix,p", po::value<std::string>(), "root prefix")
+                                ("directory,d", po::value<std::string>(), "File save path");
 
     po::variables_map optVm;    
     store(parse_command_line(argc, argv, visibleOptDesc), optVm);
@@ -29,7 +31,14 @@ int main(int argc, char * argv[]){
         prefix = optVm["prefix"].as<std::string>();
     }
 
-    Client client(prefix);
+    if(optVm.count("directory")){
+        filePath = optVm["directory"].as<std::string>();
+        if(filePath.back() != '/'){
+            filePath.append("/");
+        }
+    }
+
+    Client client(prefix, filePath);
     client.run();
     return 0;
 }

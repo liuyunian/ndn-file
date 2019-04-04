@@ -13,12 +13,14 @@ int main(int argc, char * argv[]){
     
     std::string prefix = "/localhost";
     size_t maxSegmentSize = 1024;
+    std::string filePath = "../../test/";
     namespace po = boost::program_options;
     
     po::options_description visibleOptDesc("Allowed options");
     visibleOptDesc.add_options()("help,h", "print this message and exit")
                                 ("prefix,p", po::value<std::string>(), "root prefix")
-                                ("size,s", po::value<size_t>(), "maximum chunk size, in bytes");
+                                ("size,s", po::value<size_t>(), "maximum chunk size, in bytes")
+                                ("directory,d", po::value<std::string>(), "shared file directory");
 
     po::variables_map optVm;    
     store(parse_command_line(argc, argv, visibleOptDesc), optVm);
@@ -35,7 +37,14 @@ int main(int argc, char * argv[]){
         maxSegmentSize = optVm["size"].as<size_t>();
     }
 
-    Server server(prefix, maxSegmentSize, std::cin);
+    if(optVm.count("directory")){
+        filePath = optVm["directory"].as<std::string>();
+        if(filePath.back() != '/'){
+            filePath.append("/");
+        }
+    }
+
+    Server server(prefix, maxSegmentSize, filePath);
     server.run();
     return 0;
 }
