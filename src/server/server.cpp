@@ -2,6 +2,7 @@
 #include <cassert>
 #include <dirent.h>
 #include <fstream>
+#include <memory>
 
 #include "server.h"
 
@@ -36,19 +37,27 @@ void Server::onInterest(const ndn::Interest & interest){
     ndn::Name interestName = interest.getName();
 
     // std::cout << "receive interest: " << interestName << std::endl;
-    std::string requestFileName = interestName.at(-2).toUri();
     std::string clientRequest = interestName.at(-1).toUri();
 
-    auto iter = m_store.find(requestFileName);
-    if(iter != m_store.end()){
-        std::vector<std::shared_ptr<ndn::Data>> fileContent = *(iter->second);
-        if(clientRequest == "size"){
-            m_face.put(*(fileContent.back()));
-            // std::cout << "send data: " << fileContent.back()->getName() << std::endl;
-        }    
-        else{
+    if(clientRequest == "fileList"){
+        std::string dataContent;
+        getFileList_XML(dataContent);
+
+        auto data = std::make_shared<ndn::Data>(interestName);
+        data->setFreshnessPeriod(ndn::time::milliseconds(5000));
+        data->setContent(reinterpret_cast<const uint8_t *>(&dataContent[0]), dataContent.size());
+        m_keyChain.sign(*data, ndn::signingWithSha256());
+        
+        m_face.put(*data);
+        // std::cout << "send data: " << data->getName() << std::endl;
+    } 
+    else{
+        std::string requestFileName = interestName.at(-2).toUri();
+        auto iter = m_store.find(requestFileName);
+        if(iter != m_store.end()){
+            std::vector<std::shared_ptr<ndn::Data>> &fileContent = *(iter->second);
             const auto segmentNo = static_cast<size_t>(interestName.at(-1).toNumber());
-            if (segmentNo < fileContent.size()-1){
+            if (segmentNo < fileContent.size()){
                 m_face.put(*(fileContent[segmentNo]));
                 // std::cout << "send data: " << fileContent[segmentNo]->getName() << std::endl;
             }
@@ -69,9 +78,9 @@ void Server::populateStore(){
 
     std::vector<uint8_t> buffer(m_maxSegmentSize);
 
-    for(auto & fileName : m_fileList){
+    for(const auto & fileInfor : m_fileList){
         std::string filePath(m_filePath);
-        std::ifstream fin(filePath.append(fileName));
+        std::ifstream fin(filePath.append(fileInfor->fileName));
         assert(fin.is_open());
         auto file_Data = std::make_shared<std::vector<std::shared_ptr<ndn::Data>>>();
 
@@ -79,7 +88,7 @@ void Server::populateStore(){
             fin.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
             const auto nCharsRead = fin.gcount(); //读取个数
             if (nCharsRead > 0) {
-                ndn::Name dataName = ndn::Name(m_prefix).append(fileName).appendNumber(file_Data->size());
+                ndn::Name dataName = ndn::Name(m_prefix).append(fileInfor->fileName).appendNumber(file_Data->size());
                 auto data = std::make_shared<ndn::Data>(dataName);
                 data->setFreshnessPeriod(ndn::time::milliseconds(5000));
                 data->setContent(buffer.data(), static_cast<size_t>(nCharsRead));
@@ -89,14 +98,8 @@ void Server::populateStore(){
         }
         fin.close();
 
-        auto data = std::make_shared<ndn::Data>(ndn::Name(m_prefix).append(fileName).append("size"));
-        data->setFreshnessPeriod(ndn::time::milliseconds(5000));
-        std::string size = std::to_string(file_Data->size());
-        data->setContent(reinterpret_cast<const uint8_t *>(&size[0]), size.size());
-        m_keyChain.sign(*data, ndn::signingWithSha256());
-        file_Data->push_back(data);
-
-        m_store.insert(std::pair<std::string, std::shared_ptr<std::vector<std::shared_ptr<ndn::Data>>>>(fileName, file_Data));
+        fileInfor->fileMaxSeq = file_Data->size();
+        m_store.insert(std::pair<std::string, std::shared_ptr<std::vector<std::shared_ptr<ndn::Data>>>>(fileInfor->fileName, file_Data));
     }
 }
 
@@ -108,8 +111,27 @@ void Server::getFileList(){
         //跳过'.'和'..'两个目录
         if(ptr->d_name[0] == '.')
             continue;
-        m_fileList.push_back(ptr->d_name);
+        auto fileInfor = std::make_shared<FileInfor>();
+        fileInfor->fileName = ptr->d_name;
+
+        struct stat buf;
+        std::string filePath(m_filePath);
+        stat(filePath.append(ptr->d_name).c_str(), &buf);
+        fileInfor->fileSize = buf.st_size;
+
+        m_fileList.push_back(fileInfor);
     }
  
     closedir(dir);
+}
+
+void Server::getFileList_XML(std::string & str_xml){
+    str_xml += "<FileList>";
+    for(auto & fileInfor : m_fileList){
+        str_xml = str_xml + "<FileInfor><Name>" + fileInfor->fileName + "</Name>" + 
+                    "<Time>Thu Feb 07 14:39:36 2019</Time>" + 
+                    "<Size>" + std::to_string(fileInfor->fileSize) + "</Size>" + 
+                    "<MaxSeq>" + std::to_string(fileInfor->fileMaxSeq) + "</MaxSeq></FileInfor>";
+    }
+    str_xml += "</FileList>";
 }

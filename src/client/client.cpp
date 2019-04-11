@@ -6,21 +6,43 @@
 #include <ndn-cxx/interest.hpp>
 
 #include "client.h"
-Client::Client(std::string & prefix, std::string & filePath) : 
+#include <src/client/client.moc>
+
+Client::Client(const std::string & prefix) : 
+    m_prefix(prefix){}
+
+Client::Client(const std::string & prefix, const std::string & name, const std::string & path, uint32_t maxSeq) :
     m_prefix(prefix),
-    m_filePath(filePath){}
+    m_fileName(name),
+    m_downloadPath(path),
+    m_maxSeq(maxSeq){
+        if(m_downloadPath.back() != '/'){
+            m_downloadPath.append("/");
+        }
+    }
 
-void Client::run(){
+void Client::requestFileList(){
     ndn::Name interestName(m_prefix);
-    sendInterest(interestName.append("size"));
+    sendInterest(interestName.append("fileList"));
 
+    m_face.processEvents();
+}
+
+void Client::requestFile(){
+    if(m_maxSeq > 0){
+        schedulePackets();
+    }
+    else{
+        std::cerr << "no file" << std::endl;
+        return;
+    }
     m_face.processEvents();
 }
 
 void Client::schedulePackets(){
     for(u_int64_t seg = 0; seg < m_maxSeq; seg ++){
         ndn::Name interestName(m_prefix);
-        sendInterest(interestName.appendNumber(seg));
+        sendInterest(interestName.append(m_fileName).appendNumber(seg));
     }
 }
 
@@ -28,7 +50,7 @@ void Client::sendInterest(ndn::Name & interestName){
     ndn::Interest interest(interestName);
     interest.setCanBePrefix(false);
     interest.setMustBeFresh(true);
-    interest.setInterestLifetime(ndn::time::milliseconds(5000));
+    interest.setInterestLifetime(ndn::time::milliseconds(2000));
     interest.setNonce(std::rand());
 
     try {
@@ -48,28 +70,23 @@ void Client::onData(const ndn::Data & data){
     ndn::Name dataName = data.getName();
     // std::cout << "receive data: " << dataName << std::endl;
     std::string dataType = dataName.at(-1).toUri();
-    if(dataType == "size"){
+    if(dataType == "fileList"){
         const ndn::Block & content = data.getContent();
-        const char * infor = reinterpret_cast<const char*>(content.value());
-        m_maxSeq = strtoul(infor, NULL, 10);
-
-        if(m_maxSeq > 0){
-            schedulePackets();
-        }
-        else{
-            std::cerr << "no file" << std::endl;
-        }
+        std::string fileListInfor(reinterpret_cast<const char*>(content.value()), content.value_size());
+        // std::cout << fileListInfor << std::endl;
+        emit displayFileListInfor(QString::fromStdString(fileListInfor)); 
     }
     else{
-        std::string filePath(m_filePath); 
+        std::string filePath(m_downloadPath); 
         std::string fileName = dataName.at(-2).toUri();
+        filePath.append(fileName);
+
         std::ofstream fout;
         if(dataType == "%00"){
-            fout.open(filePath.append(fileName), std::ios::out | std::ios::trunc);
-            
+            fout.open(filePath, std::ios::out | std::ios::trunc);  
         }
         else{
-            fout.open(filePath.append(fileName), std::ios::out | std::ios::app);
+            fout.open(filePath, std::ios::out | std::ios::app);
         }
         assert(fout.is_open());
 

@@ -40,3 +40,11 @@ Usage:
 eg:
     build/client -p /ndn/test.txt -d /home/lyn/桌面
 ```
+## Version 3
+* 更新了Client，增加了界面操作
+```
+Usage:
+    build/client进入界面，输入节点名称和前缀
+    之后可以获得节点分享的文件列表
+    点击下载按钮即可下载
+```
