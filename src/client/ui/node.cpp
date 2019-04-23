@@ -28,26 +28,26 @@ Node::Node(const std::string & name, const std::string & prefix, QWidget *parent
     ui->fileListTable->setEditTriggers(QAbstractItemView::NoEditTriggers); //设置表格不能编辑
     ui->fileListTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch); //设置第一列宽度为自适应
 
-    m_client = new Client(m_prefix);
+    // m_client = new Client(m_prefix);
+    m_client = std::make_unique<Client>(m_prefix);
 
-    connect(m_client, SIGNAL(displayFileListInfor(QString)),
+    connect(m_client.get(), SIGNAL(displayFileListInfor(QString)),
             this, SLOT(on_displayFileListInfor(QString)),
             Qt::QueuedConnection);
 
-    std::thread rFLThread(&Client::requestFileList, m_client);
-    rFLThread.detach();
+    m_client->requestFileList();
 }
 
 Node::~Node()
 {
     delete ui;
-    if(m_client != nullptr){
-        delete m_client;
-    }
+    // if(m_client != nullptr){
+    //     delete m_client;
+    // }
 }
 
 void Node::on_displayFileListInfor(QString fileListInfor){
-    delete m_client;
+    // delete m_client;
 
     QDomDocument doc;
     if(!doc.setContent(fileListInfor))
@@ -104,9 +104,9 @@ void Node::ClickDownloadButton(){
         return;
     }
 
-    m_client = new Client(m_prefix, fileName, filePath, maxSeq);
-    std::thread rFThread(&Client::requestFile, m_client);
-    rFThread.detach();
+    // m_client = new Client(m_prefix, fileName, filePath, maxSeq);
+    m_client = std::make_unique<Client>(m_prefix, fileName, filePath, maxSeq);
+    m_client->requestFile();
 }
 
 

@@ -12,14 +12,14 @@ void usage(const boost::program_options::options_description &options){
 int main(int argc, char * argv[]){
     
     std::string prefix = "/localhost";
-    size_t maxSegmentSize = 1024;
+    u_int64_t maxSegmentSize = 1024;
     std::string filePath = "../../test/";
     namespace po = boost::program_options;
     
     po::options_description visibleOptDesc("Allowed options");
     visibleOptDesc.add_options()("help,h", "print this message and exit")
                                 ("prefix,p", po::value<std::string>(), "root prefix")
-                                ("size,s", po::value<size_t>(), "maximum chunk size, in bytes")
+                                ("size,s", po::value<u_int64_t>(), "maximum chunk size, in bytes")
                                 ("directory,d", po::value<std::string>(), "shared file directory");
 
     po::variables_map optVm;    
@@ -34,7 +34,7 @@ int main(int argc, char * argv[]){
     }
 
     if(optVm.count("size")){
-        maxSegmentSize = optVm["size"].as<size_t>();
+        maxSegmentSize = optVm["size"].as<u_int64_t>();
     }
 
     if(optVm.count("directory")){

@@ -40,7 +40,8 @@ private:
     std::string m_prefix;
     std::map<std::string, uint32_t> m_fileList;
     
-    Client * m_client;
+    // Client * m_client;
+    std::unique_ptr<Client> m_client;
 };
 
 #endif // NODE_HPP
