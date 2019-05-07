@@ -24,9 +24,6 @@ private:
     // @brief 注册前缀失败之后的回调函数
     void onRegisterFailed(const ndn::Name & prefix, const std::string & reason);
 
-    // // @brief 处理文件夹下的所有文件
-    // void populateStore();
-
     // @brief 读取文件内容并封装成Data包
     void makeFileData(const std::string & fileName, u_int64_t begin);
  
@@ -39,18 +36,14 @@ private:
     struct FileInfor{
         off_t fileSize;
         uint32_t fileMaxSeq;
-
-        // u_int64_t readProgress = 0;
     };
 
 private:
     std::string m_prefix;
     u_int64_t m_maxSegmentSize;
     std::string m_filePath;
-    // std::vector<std::shared_ptr<FileInfor>> m_fileList;
-    std::map<std::string, std::shared_ptr<FileInfor>> m_fileList;
-    std::shared_ptr<ndn::Data> m_fileListData;
-    std::map<std::string, std::shared_ptr<std::vector<std::shared_ptr<ndn::Data>>>> m_store;
+    std::map<std::string, std::unique_ptr<FileInfor>> m_fileList;
+    std::map<std::string, std::unique_ptr<std::vector<std::unique_ptr<ndn::Data>>>> m_store;
 
     ndn::Face m_face;
     ndn::KeyChain m_keyChain;

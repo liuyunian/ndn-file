@@ -3,7 +3,6 @@
 #include <dirent.h>
 #include <fstream>
 #include <memory>
-
 #include <sys/time.h>
 
 #include "server.h"
@@ -18,7 +17,7 @@ Server::Server(std::string & prefix, u_int64_t maxSegmentSize, std::string & fil
     getFileList();
 
     for(const auto & fileInfor : m_fileList){
-        m_store.insert({fileInfor.first, std::make_shared<std::vector<std::shared_ptr<ndn::Data>>>()});
+        m_store.insert({fileInfor.first, std::make_unique<std::vector<std::unique_ptr<ndn::Data>>>()});
     }
 }
 
@@ -50,7 +49,7 @@ void Server::onInterest(const ndn::Interest & interest){
         std::string dataContent;
         getFileList_XML(dataContent);
 
-        auto data = std::make_shared<ndn::Data>(interestName);
+        auto data = std::make_unique<ndn::Data>(interestName);
         data->setFreshnessPeriod(ndn::time::milliseconds(2000));
         data->setContent(reinterpret_cast<const uint8_t *>(&dataContent[0]), dataContent.size());
         m_keyChain.sign(*data, ndn::signingWithSha256());
@@ -61,15 +60,13 @@ void Server::onInterest(const ndn::Interest & interest){
     else{
         std::string requestFileName = interestName.at(-2).toUri();
         const auto segmentNo = static_cast<u_int64_t>(interestName.at(-1).toNumber());
-
+        // std::cout << segmentNo << std::endl;
         if(segmentNo % MAXSIZE == 0){
             makeFileData(requestFileName, segmentNo);
         }
 
-        std::shared_ptr<std::vector<std::shared_ptr<ndn::Data>>> fileContent(m_store[requestFileName]);
-
-        // std::cout << "send data: " << fileContent->at(segmentNo % MAXSIZE)->getName() << std::endl;
-        m_face.put(*(fileContent->at(segmentNo % MAXSIZE)));
+        // std::cout << "send data: " << m_store[requestFileName]->at(segmentNo % MAXSIZE)->getName() << std::endl;
+        m_face.put(*(m_store[requestFileName]->at(segmentNo % MAXSIZE)));
     }
 }
 
@@ -80,16 +77,8 @@ void Server::onRegisterFailed(const ndn::Name & prefix, const std::string & reas
               << reason << std::endl;
 }
 
-// void Server::populateStore(){
-//     assert(m_store.empty()); //当存储的不为空时报错
-
-//     for(const auto & fileInfor : m_fileList){
-//         makeFileData(fileInfor.first, 0);
-//     }
-// }
-
 void Server::makeFileData(const std::string & fileName, u_int64_t begin){
-    auto file_Data = std::make_shared<std::vector<std::shared_ptr<ndn::Data>>>();
+    auto file_Data = std::make_unique<std::vector<std::unique_ptr<ndn::Data>>>();
     std::vector<uint8_t> buffer(m_maxSegmentSize);
 
     std::string filePath(m_filePath);
@@ -104,11 +93,11 @@ void Server::makeFileData(const std::string & fileName, u_int64_t begin){
             const auto nCharsRead = fin.gcount(); //读取个数
             if(nCharsRead > 0) {
                 ndn::Name dataName = ndn::Name(m_prefix).append(fileName).appendNumber(i);
-                auto data = std::make_shared<ndn::Data>(dataName);
+                auto data = std::make_unique<ndn::Data>(dataName);
                 data->setFreshnessPeriod(ndn::time::milliseconds(2000));
                 data->setContent(buffer.data(), static_cast<size_t>(nCharsRead));
                 m_keyChain.sign(*data, ndn::signingWithSha256());
-                file_Data->push_back(data);
+                file_Data->push_back(std::move(data));
             }
         }
     }
@@ -118,11 +107,11 @@ void Server::makeFileData(const std::string & fileName, u_int64_t begin){
             const auto nCharsRead = fin.gcount(); //读取个数
             if (nCharsRead > 0) {
                 ndn::Name dataName = ndn::Name(m_prefix).append(fileName).appendNumber(begin + file_Data->size());
-                auto data = std::make_shared<ndn::Data>(dataName);
+                auto data = std::make_unique<ndn::Data>(dataName);
                 data->setFreshnessPeriod(ndn::time::milliseconds(2000));
                 data->setContent(buffer.data(), static_cast<size_t>(nCharsRead));
                 m_keyChain.sign(*data, ndn::signingWithSha256());
-                file_Data->push_back(data);
+                file_Data->push_back(std::move(data));
             }
         }
         // std::cout << "[" << begin << ", " <<  begin + file_Data->size()<< ")" << std::endl;
@@ -132,7 +121,7 @@ void Server::makeFileData(const std::string & fileName, u_int64_t begin){
 
     const auto iter = m_store.find(fileName);
     if(iter != m_store.end()){
-        (*iter).second = file_Data;
+        (*iter).second = std::move(file_Data);
     }
 }
 
@@ -150,7 +139,7 @@ void Server::getFileList(){
         std::string filePath(m_filePath);
         stat(filePath.append(ptr->d_name).c_str(), &buf);
 
-        auto fileInfor = std::make_shared<FileInfor>();
+        auto fileInfor = std::make_unique<FileInfor>();
         fileInfor->fileSize = buf.st_size;
 
         // TODO FILE_TIME
@@ -162,7 +151,7 @@ void Server::getFileList(){
             fileInfor->fileMaxSeq = buf.st_size / m_maxSegmentSize + 1;
         }
 
-        m_fileList.insert({fileName, fileInfor});
+        m_fileList.insert({fileName, std::move(fileInfor)});
     }
     closedir(dir);
 }
@@ -176,6 +165,4 @@ void Server::getFileList_XML(std::string & str_xml){
                     "<MaxSeq>" + std::to_string(fileInfor.second->fileMaxSeq) + "</MaxSeq></FileInfor>";
     }
     str_xml += "</FileList>";
-
-    // std::cout << str_xml << std::endl;
 }

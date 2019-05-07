@@ -9,7 +9,7 @@
 #include "threadpool.h"
 
 class Client : public QObject{
-    Q_OBJECT //如果要用信号与槽机制必须要加这句话
+    Q_OBJECT
 
 public:
     Client(const std::string & prefix);
@@ -25,24 +25,30 @@ public:
 private:
     void onData(const ndn::Data & data);
     void onNack();
-    void onTimeOut();
+    void onTimeOut(const ndn::Interest & interest);
 
     void batchSendInterest(u_int64_t start, u_int64_t end);
     void sendInterest(ndn::Name & interestName);
 
+    void writeToFile();
+
 signals:
     void displayFileListInfor(QString);
+
+    void displayProgress(QString, int);
+
+    void fileCompleted(QString);
 
 private:
     std::string m_prefix;
     std::string m_downloadPath;
     std::string m_fileName;
     uint64_t m_maxSeq = 0;
-    uint64_t m_sentSeq = 0;
-
-    std::shared_ptr<std::vector<std::shared_ptr<const ndn::Data>>> m_dataCache;
+    bool m_done = false;
     
+    std::map<uint64_t, std::shared_ptr<const ndn::Data>> m_dataCache;
     ThreadPool * m_pool;
+
     ndn::Face m_face;
 };
 #endif

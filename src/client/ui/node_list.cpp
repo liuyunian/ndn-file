@@ -1,22 +1,40 @@
-#include "node_list.hpp"
+#include "node_list.h"
 #include "ui_node_list.h"
 #include <src/client/ui/node_list.moc>
 
-#include "node.h"
-#include "ui_node.h"
+#include <QMessageBox>
 
-NodeList::NodeList(std::vector<std::shared_ptr<Node>> & nodeList, QWidget *parent) :
-    QDialog(parent),
+NodeList::NodeList(QWidget *parent) :
+    QMainWindow(parent),
     ui(new Ui::NodeList),
-    m_nodeList(nodeList)
+    tabWidget(new QTabWidget(parent))
 {
     ui->setupUi(this);
-    for(auto node : m_nodeList){
-        this -> ui -> verticalLayout -> addWidget(node.get());
-    }
+
+    this->setWindowTitle("File List");  
 }
 
 NodeList::~NodeList()
 {
     delete ui;
 }
+
+void NodeList::on_AddNode_clicked(){
+    QString nodeName = this->ui->NodeName->text();
+    QString nodePrefix = this->ui->NodePrefix->text();
+    if(nodeName.isEmpty() || nodePrefix.isEmpty()){
+        QMessageBox::warning(NULL, "warning", "node name or prifix can't be empty");
+        return;
+    }
+
+    auto node = std::make_unique<Node>(nodeName, nodePrefix.toStdString());
+    m_nodeList.push_back(std::move(node));
+
+    tabWidget->addTab(m_nodeList.back().get(), m_nodeList.back()->getNodeName());
+    this->ui->verticalLayout->addWidget(tabWidget);
+
+    this->ui->NodeName->clear();
+    this->ui->NodePrefix->clear();
+}
+
+
